@@ -157,26 +157,7 @@ class database extends mutall{
             this.entities[ename] = active_entity;
         }
     }
-    //
-    //present the database interms of ellipses for entities and lines for relations
-    present() {
-        //
-        //Create the svg  element 
-        const div = document.createElement('div');
-        //
-        //Append all the graphic in entities as children from the entities which 
-        //contain a group with an ellipse, text and the attributes  
-        for (let key  in this.entities){
-            //
-            //Get the entity referenced by the key
-             let entity= this.entities[key];
-             //
-             //Get the presentation from the individual entities
-             entity.present(div);
-        }
         
-       return div;
-    }    
     //
     //Returns the entot if is found; otherwise it throws an exception
     get_entity(ename){

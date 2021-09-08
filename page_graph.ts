@@ -1,4 +1,12 @@
 //
+//Import the structure of the database that can be alterable
+import * as metavisuo from './mtavisuo.js';
+// 
+//Import the php methods that are accesible to this application
+import * as library from '../bolster/library.js'
+import create_element from './create.js';
+
+//
 //Panning and zooming step (you may want to consider 2 steps, one for zooming
 //the other for panning
 var step = 100;
@@ -18,67 +26,47 @@ var current_db=null;
 
 ////This class was motivated by the need to present any data model in a graphical 
 //way
-class page_graph {
-    
+class page_graph extends metavisuo.schema.schema{
+    //
+    //The database name of the opened database it can be undefined since it is a user 
+    //evoked input.
+    public dbname?:string;
+    // 
+    //Get the type of the database to be opened
+    public db_type?:metavisuo.schema.db_type;
+    // 
+    //The database that is currently being displayed.
+    public dbase?:metavisuo.alterable_database;
+    // 
+    //The selector for database type.
+    public type_selector?:HTMLSelectElement;
+    // 
+    //The selector for the dbname.
+    public dbname_selector?:HTMLSelectElement;
+    //
     //Use the querystring passed on from PHP to construct this page
-    constructor($request) {
+    constructor(){super("page_graph");}
+    // 
+    //initialize this graph with the available databases for display 
+    async initialize():Promise<void>{
+        // 
+        //Create the dbselctor 
+        this.type_selector= create_element(document,"select",{});
+        // 
+        //Populate the selector with options.
+        create_element(this.type_selector,"option",{textContent:"mysql",value:"mysql"});
+        create_element(this.type_selector,"option",{textContent:"postgres",value:"postgres"});
+        create_element(this.type_selector,"option",{textContent:"mssql",value:"mssql"});
         //
-        //set the url query string variables
-        this.request = $request;
-        //
-        //Boostraping
-        window.onload = async () => {
-            //
-            //Check if there is a database request at the query string 
-            //
-            //Return a false if a database request us not found, otherwise 
-            //the dabase name
-            let dbname = await page_graph.database_request_found($request);
-            //
-            //If looged in and there is a database request, present it
-            if (dbname) {
-                // 
-                //Set the database name
-                this.dbname = dbname;
-                //
-                //Set the dbase as a property of the main class pagegraph
-                this.dbase = await this.get_dbase();
-                //
-                //get the svg inner html from the javascript library 
-                let $svg = this.dbase.present();
-                //
-                //Get the svg element from the home page 
-                let $content = document.getElementById("svg");
-                //
-                $content.innerHTML = $svg.innerHTML;
-                //
-                //
-                //allow user to close the datadase 
-                let  select = document.getElementById('open_dbase');
-                select.setAttribute('hidden', true);
-                //
-                //get the clse button.
-                let close = document.querySelector('#close_dbase');
-                close.textContent = (`close${this.dbname}`);
-                close.removeAttribute('hidden');
-            }
-            //
-            //Populate the selector with the database names that are available at 
-            //at my sql
-            else{
-                //
-                //Populate the selector from where the user can select the database
-                //to open
-                page_graph.fill_selector();
-            }
-        };
-        //
+        //Add an event listener to the option that creates and populates the dbname selector 
+        //with the available databases for that database type
+        this.type_selector.onchange=async()=>await this.fill_selector;
     }
  
     //
     //Fomulate the sql and retrieve the database names from the local server which
     //populates the selector
-    static fill_selector(page){
+    fill_selector(){
         //
         //Get the selector tag from the window to be popilated with the dbnames
         const selector = document.getElementById("selector");
@@ -934,214 +922,6 @@ class page_graph {
     
 }
 
-//
-//This is an extented class of the entity in my library.js
-class alterable_entity extends entity{
-    
-  //
-  //The alterable entity constructor
-  constructor(dbase, static_entity){
-        //
-        //Create the parent 
-        super(dbase, static_entity);
-    }
-    
-     //overwrite the collumns to create a collection of the alterable columns and relations
-    activate_columns(){
-        //
-        let columns = [];
-        //
-        //Loop through all the static columns and activate each of them
-        for(let cname in this.columns ){
-            //
-            //Get the static column
-            let static_column = this.columns[cname];
-            //
-            //Define a dynamic column
-            let dynamic_column;
-            switch(static_column.type){
-                //
-                case "primary": 
-                     dynamic_column = new column_primary(this, static_column);
-                    break;
-                case "attribute": 
-                    dynamic_column = new alterable_attribute(this, static_column);
-                    break;
-                case "foreign":
-                    dynamic_column = new alterable_relation(this, static_column);
-                    break;
-                default:
-                    alert (`Unknow column type {static_column.type}`);
-            }
-        //
-        //Replace the static column with the dynamic one
-        columns.push(dynamic_column);
-        }
-        return columns;
-    }
-    //
-    //Displays and returns this entity in a div as an interface for editing
-    display(comment){
-        if(comment.title===undefined){comment.title='';}
-        //
-        //Create a div which will be appended this entity 
-        const div = document.createElement('div');
-        //
-        //Set the inner html of the div
-        div.innerHTML=`
-            <label>Entity name:<input name="ename" readonly="true" value="${this.name}"/></label>
-            <label>Title <input type="text" name="title"value="${comment.title}" id="title"/></label>
-            <label><input type="checkbox" name="reporting" id = "report"/>Reporting </label>
-            <label><input type="checkbox" name="administration" id ="admin"/>Administration</label>
-            <label><input type="checkbox" name="visible" id= "visible"/>invisible</label>
-            <label>coordinates cx:<input type="text" name="cx"value="${comment.cx}" id="cx"/>
-            cy:<input type="text" name="cy" value="${comment.cy}" id="cy"/></label>
-            <button id="save" onclick ="$page_graph.save_entity(this)" >Save</button> <button id="cancel">cancel</button>`;
-        //
-        //Return the display
-        return div;
-    }
-    
-    //
-    //Get the updated comment and save it 
-    get_comment(win){
-        //
-        //Start with an empty array to store the comment
-        const comment= {}; 
-        //
-        //Get the title input by the user to this entity 
-        comment['title']= win.document.getElementById("title").value;
-        //
-        //Get the input tag for reporting and test if it is checked
-        comment["reporting"] =win.document.getElementById("report").checked;
-        //
-        //Get the administration data 
-        comment["administration"] =win.document.getElementById("admin").checked;
-        //
-        //Get the visible data 
-        comment["visible"] =win.document.getElementById("visible").checked;
-        //
-        //Get the coodinates data of the entity 
-        comment["cx"] =win.document.getElementById("cx").value;
-        comment["cy"] =win.document.getElementById("cy").value;
-        //
-        //Save the comment 
-        this.alter(comment);
-    }
-    
-    //
-    //Returns a table popilated with the attributes of this entity and the metadata
-    //curently saved in them in a table format 
-    display_attributes(table=null){
-        //
-        //if the table is null create our own table
-        if (table===null){table = document.createElement('table');}        
-        //
-        //loop throough the entity columns and append the various culumn names 
-        const attributes=Object
-            //
-            //Get the columns
-            .values(this.columns)
-            //
-            //Select attributes only
-            .filter(column=>{
-                return column.type==='attribute';
-            });
-        //
-        //Map each column to a tr
-        const rows=attributes.map(column=>{
-            //
-            //Create a raw
-            const row = window.document.createElement('tr');
-            //build the row with the relevant tds, labels and the inputs respectively
-            //
-            //Create the first td which contains the name of the column
-            const td1 = document.createElement('td');
-            td1.innerHTML=`<td>${column.name}</td>`;
-            row.appendChild(td1);
-            //
-            //Create the table data to append the attribute div
-            const td2 = document.createElement('td');
-            //
-            //Get the divs that represent the attribute 
-            td2.appendChild(column.display());
-            row.appendChild(td2);
-           //
-           //Return the raw
-           return row;
-        });
-        //
-        //Append each tr to the table
-        rows.forEach(row=>{
-          //
-          //Append the raws to the table
-          table.appendChild(row);  
-        });
-    }
-  
-    //
-    //Alters the metadata of the entity including the title or any other friendly name 
-    //data input by the user in the page graph interface 
-    async alter(comment){
-        //
-        //This comment can either be saves in the database or at the windows local storage 
-        //for now we save everything in this entity comment 
-        //
-        //
-        //encode the entire comment to make it a json format 
-        const comment_str = JSON.stringify(comment);
-        //
-        //Save the newly updated  comment to the database as a comment  
-        //
-        //Generate the sql for the alter command 
-        const sql = "ALTER TABLE "
-        //
-        //The name of the table to be altered is the name of the coodinate 
-        +`\`${this.name}\``
-        // 
-        //Update the comment to now fit the the new view of reporting 
-        + "COMMENT "
-            //
-            //The cooment information has to be in a json format ie'{"cx":5500,"cy":3300,......}'
-        +`'${comment_str}'`;
-        //Execute the sql in the server side 
-        const name= page_graph.dbname;
-        //
-        await mutall.fetch('database', 'query', {name, sql});
-
-    }
-    
-    //
-    //Alters the comment metadata at the column level and updates it with the new 
-    //comment structure as inserted by the user as the attribute metadata retrieved 
-    //from a table
-    alter_attributes(table){
-        //
-        //Get the table rows 
-        const column_rows= table.getElementsByTagName('tr');
-        //
-        //loop through each row to get the respective cell data 
-        for (let i = 2; i< column_rows.length; i++){
-            //
-            //every row represents a column;
-            //
-            //Get the ith raw
-            const row= column_rows[i];
-            //
-            //obtain the column name
-            const cname= row.cells[0].innerHTML;
-            //Create the comment property to store the various components 
-            //
-            //Get the div that displays the attribute
-            const rw= row.lastChild;
-            //
-            const div= rw.childNodes;
-            //Update the structure of the alterable attribute compilling it  for 
-            //altering the attribute 
-            this.columns[cname].update(div);    
-        }
-    }
-}
 
 //
 //This class models an sql record that has all the column 
@@ -1544,3 +1324,9 @@ class alterable_relation extends column_foreign{
     }
 
 }
+// 
+//Onload of this class call the initialize method.
+window.onload = async () => {
+    const Graph=new page_graph();
+    Graph.initialize();
+};
