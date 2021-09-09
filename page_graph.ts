@@ -50,8 +50,14 @@ class page_graph extends metavisuo.schema.schema{
     //initialize this graph with the available databases for display 
     async initialize():Promise<void>{
         // 
+        //Get the header section
+        const header= <HTMLDivElement>document.querySelector('#header');
+        // 
         //Create the dbselctor 
-        this.type_selector= create_element(document,"select",{});
+        this.type_selector= create_element(header,"select",{id:"type_selector"});
+        // 
+        //create the dbname selector that is populated by the onchange of the type selector 
+        this.dbname_selector=create_element(header,"select",{id:"dbname_selector"});
         // 
         //Populate the selector with options.
         create_element(this.type_selector,"option",{textContent:"mysql",value:"mysql"});
@@ -65,44 +71,29 @@ class page_graph extends metavisuo.schema.schema{
  
     //
     //Fomulate the sql and retrieve the database names from the local server which
-    //populates the selector
-    fill_selector(){
+    //populates the selector. This is on the assumption that all databases have a test 
+    //database existing.
+    async fill_selector():Promise<void>{
         //
-        //Get the selector tag from the window to be popilated with the dbnames
-        const selector = document.getElementById("selector");
+        //Get the selected database type
+        const type=<metavisuo.schema.db_type>this.type_selector!.value;
+        // 
+        //Fetch the database names that exist of this type.
+        const dbnames= await this.exec(library.library,type,["test"],"")
         //
-        //Fetch all the database names that are available at the local host.
-        //
-        //specify the query to retrueve teh database names 
-        const sql = "select schema_name as dbname "
-            //
-            //The database names are at the table schemata in the information schema
-            +"from schemata ";
-            //
-            //Only the user database names can be retieved using for opening  
-            +"where not(schema_name in ('MYSQL', 'PERFORMANCE_SCHEMA', 'phpmyadmin')) ";
-         //
-         //The database to query isnthe information schema
-         const name = "mysql:host=localhost;dbname=information_schema";
-         //
-        // Fetch the database names 
-         const myfetch = async ()=>{ 
-            //The mutall class requires a class, method and the database login credentials
-             const dbnames = await mutall.fetch('database', 'get_sql_data', {name, sql});             
-             //
-            //Append all fetched the database names to the selector 
-            dbnames.forEach($dbname => {
-                 let dbasename = $dbname.dbname;
-                 //
-                 //Createan option using the $dbname
-                 let  $option = document.createElement('option');
-                 //
-                 //Set the text content as the dbase name 
-                 $option.textContent = dbasename;
-                 //
-                 //Append the child option to the selector
-                 selector.appendChild($option);
-                });
+        //Append all fetched the database names to the selector 
+        dbnames.forEach($dbname => {
+                let dbasename = $dbname.dbname;
+                //
+                //Createan option using the $dbname
+                let  $option = document.createElement('option');
+                //
+                //Set the text content as the dbase name 
+                $option.textContent = dbasename;
+                //
+                //Append the child option to the selector
+                selector.appendChild($option);
+            });
             
         };
         //
