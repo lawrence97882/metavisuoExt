@@ -4,8 +4,7 @@ import * as metavisuo from './mtavisuo.js';
 // 
 //Import the php methods that are accesible to this application
 import * as library from '../bolster/library.js'
-import create_element from './create.js';
-
+import {create_html_element} from './create.js'
 //
 //Panning and zooming step (you may want to consider 2 steps, one for zooming
 //the other for panning
@@ -27,170 +26,123 @@ var current_db=null;
 ////This class was motivated by the need to present any data model in a graphical 
 //way
 class page_graph extends metavisuo.schema.schema{
+    /**
     //
-    //The database name of the opened database it can be undefined since it is a user 
-    //evoked input.
-    public dbname?:string;
-    // 
-    //Get the type of the database to be opened
-    public db_type?:metavisuo.schema.db_type;
-    // 
     //The database that is currently being displayed.
-    public dbase?:metavisuo.alterable_database;
+     * public dbase?:metavisuo.alterable_database;
     // 
     //The selector for database type.
-    public type_selector?:HTMLSelectElement;
+     *public type_selector?:HTMLSelectElement;
     // 
     //The selector for the dbname.
-    public dbname_selector?:HTMLSelectElement;
+      *public dbname_selector?:HTMLSelectElement;
+    // 
+    //The svg element where the presentation is taking place.
+        *public svg?:SVGSVGElement;
+    **/
     //
     //Use the querystring passed on from PHP to construct this page
     constructor(){super("page_graph");}
     // 
     //initialize this graph with the available databases for display 
-    async initialize():Promise<void>{
+    async initialize()/*:Promise<void>*/{
         // 
         //Get the header section
-        const header= <HTMLDivElement>document.querySelector('#header');
+        const header= /*<HTMLDivElement>*/document.querySelector('#header');
         // 
         //Create the dbselctor 
-        this.type_selector= create_element(header,"select",{id:"type_selector"});
+        this.type_selector= create_html_element(header,"select",{id:"type_selector"});
         // 
         //create the dbname selector that is populated by the onchange of the type selector 
-        this.dbname_selector=create_element(header,"select",{id:"dbname_selector"});
+        this.dbname_selector=create_html_element(header,"select",{id:"dbname_selector"});
         // 
         //Populate the selector with options.
-        create_element(this.type_selector,"option",{textContent:"mysql",value:"mysql"});
-        create_element(this.type_selector,"option",{textContent:"postgres",value:"postgres"});
-        create_element(this.type_selector,"option",{textContent:"mssql",value:"mssql"});
+        create_html_element(this.type_selector,"option",{textContent:"mysql",value:"mysql"});
+        create_html_element(this.type_selector,"option",{textContent:"postgres",value:"postgres"});
+        create_html_element(this.type_selector,"option",{textContent:"mssql",value:"mssql"});
         //
         //Add an event listener to the option that creates and populates the dbname selector 
         //with the available databases for that database type
         this.type_selector.onchange=async()=>await this.fill_selector;
+        // 
+        //Set the svg element. 
+        this.svg=/*<SVGSVGElement>*/document.querySelector("#svg");
+        // 
+        //Save the view box 
+        this.viewbox= this.get_viewbox();
     }
  
     //
     //Fomulate the sql and retrieve the database names from the local server which
     //populates the selector. This is on the assumption that all databases have a test 
     //database existing.
-    async fill_selector():Promise<void>{
+    async fill_selector()/*:Promise<void>*/{
+        // 
+        //Empty the options in the dbnames of the previous selection;
+        this.dbname_selector.innerHTML="";
         //
         //Get the selected database type
-        const type=<metavisuo.schema.db_type>this.type_selector!.value;
+        const type=/*<metavisuo.schema.db_type>*/this.type_selector.value;
         // 
         //Fetch the database names that exist of this type.
-        const dbnames= await this.exec(library.library,type,["test"],"")
+        const dbnames= await this.exec(type,["test"],"get_dbnames",[]);
         //
         //Append all fetched the database names to the selector 
-        dbnames.forEach($dbname => {
-                let dbasename = $dbname.dbname;
-                //
-                //Createan option using the $dbname
-                let  $option = document.createElement('option');
-                //
-                //Set the text content as the dbase name 
-                $option.textContent = dbasename;
-                //
-                //Append the child option to the selector
-                selector.appendChild($option);
-            });
-            
-        };
-        //
-        myfetch();
+        dbnames.forEach(dbname => {
+            //
+            create_html_element(this.dbname_selector,"option",{textContent:dbname,value:dbname});
+        });
+        // 
+        //onchange of this selector present a diferent database
+        this.dbname_selector.onchange=()=>this.change_db;
     }
-    static get dbname(){
-        //
-        //Retrieve the selected option
-        let sel = document.querySelector('select');
-        return sel.options[sel.selectedIndex].text;  
-    }
+    // 
+    //The currently selected dbname as set by the user.
+    get dbname()/*:string*/{return this.dbname_selector.value;}
+    // 
+    //The type of database selected by the user.
+    get db_type()/*:metavisuo.schema.db_type*/{return /*<metavisuo.schema.db_type>*/this.type_selector.value;}
     //
-    //Get the selected property and open a new database with it 
-    static async changedb(){
+    //Display the newly selected database
+    async change_db(){
+        // 
+        //Clear the text content of the svg so as to append new content
+        this.svg.innerHTML="";
         //
         //
         //Get the static database which is the php version of the database
         //this is to activate the library.js           
-        const dbase = await page_graph.get_dbase(this.dbname);
+        const dbase = await this.get_dbase(this.db_type,this.dbname);
         //
-        //get the svg inner html from the javascript library 
-        let $svg = databases[this.dbname].present();
-        //
-        //Get the svg element from the home page 
-        let $content = document.getElementById("svg");
-        //
-        $content.innerHTML = $svg.innerHTML;
-        //
-        //Empty the selector with the hidden entities 
-        const hidden = document.getElementById('hidden');
-        const options=hidden.childNodes;
-        for(let i=1; i<options.length; i++){
-            hidden.removeChild(options[i]);
-        }
-        //
-        //change the text content of the view database to close database
-        //get the close dbase button 
-        let close = document.getElementById('close_dbase');
-        close.removeAttribute('hidden');
-        close.textContent = 'close ' + this.dbname;
-        //
-        //popilate with the hidden entities also 
-        this.fill_hidden();
+        //Append the various database componets to this svg.
+        dbase.present(this.svg);
     }
     //
     //Returns the dbase which is obtained via the javascript library 
-    static async get_dbase(dbname){
+    async get_dbase(dbtype/**:metavisuo.schema.db_type*/, dbname/*:string*/)/*:Promise<metavisuo.alterable_database>**/{
         //
         //Check if the database is alraedy opened; if it is, use the opened 
         //database; otherwise, open a fresh one
-        if (databases[dbname]!==undefined){
-            return databases[dbname];
+        if (metavisuo.alterable_database.opened_databases[dbtype][dbname]===undefined){
+            //
+            //Get the static database which is the php version of the database
+            //this is to activate the library.js
+            const _dbase = await this.exec(dbtype,[dbname],"export_structure",[])
+            //
+            //Create the schema database
+            const schema = new metavisuo.schema.database(_dbase);
+            //
+            const dbase = new metavisuo.alterable_database(schema);
         }
-        //
-        //Get the static database which is the php version of the database
-        //this is to activate the library.js
-        //
-        const _dbase = await mutall.fetch('database', 'export_structure', {name:dbname});
-        //
-        window.__static_dbase__= _dbase;
-        const dbase = new alterable_database(_dbase);
-        
-        //
-        //Add this database to the global collection
-        databases[dbname]=dbase;
         //
         //Return the javascript database
-        return dbase;
-    }
-    
-    //
-    //obtain the database request from the url using location.search
-    static database_request_found($request) {
-        //
-        //tests if the url contains the dbname
-        if (typeof $request['dbname'] === 'undefined' || $request['dbname'] === null) {
-            //
-            return false;
-        } else {
-            //
-            //set the database name from the request property
-            let dbname = $request['dbname'];
-            return dbname;
-        }
-    }
-    //
-    //Loading a page sets the viewbox property
-    static set_svg() {
-        //Get the svg property  
-        let svg = window.document.querySelector('svg');
-        return svg;
+        return metavisuo.alterable_database.opened_databases[dbtype][dbname];
     }
 
     //The view box property that controls panning and zooming.
-    static get viewbox() {
+    get_viewbox()/*:Array<number>[4]*/ {
         //
-        //If eh viewbox is empty, fill it from the svg
+        //If the viewbox is empty, fill it from the svg
         if (viewbox_.length === 0) {
             //
             //Get the svg tag 
@@ -210,83 +162,77 @@ class page_graph extends metavisuo.schema.schema{
         //
         return viewbox_;
     }
-
-    static set viewbox($v) {
-        viewbox_ = $v;
-    }
-
+    //
     //zoom function. True direction means to zoom out
-    static zoom(dir = true) {
+    zoom(dir = true) {
         //
         //get the third component of the viewbox which is the zoom
-        let $zoom = page_graph.viewbox[2];
+        let zoom = this.viewbox[2];
         //
         //Set the direction to + r -
-        let $sign = dir ? 1 : -1;
+        let sign = dir ? 1 : -1;
         //
         //Increase/decrease zoom by, say, 100
-        $zoom = $zoom + $step * $sign;
+        zoom = zoom + step * sign;
         //
         //Replace the 2nd and 3rd split values with the new zoom value
-        page_graph.viewbox[2] = $zoom;
-        page_graph.viewbox[3] = $zoom;
+        this.viewbox[2] = zoom;
+        this.viewbox[3] = zoom;
+        // 
+        //Display the new settings 
+        this.display();
+    }
+    // 
+    //Changes the view setting to a user defined setting 
+    display()/*:void*/{
         //
         //Turn the array into text
-        let $viewboxstr = page_graph.viewbox.join(" ");
+        let viewboxstr = this.viewbox.join(" ");
         //
         //Assign the new view box to the svg viewBox Attribute
-        document.querySelector('svg').setAttribute('viewBox', $viewboxstr);
+        this.svg.setAttribute('viewBox', viewboxstr);
     }
     //
     //Spans the graph to the left and to the right
-    static side_pan(dir = true) {
-
+    side_pan(dir = true) {
         //
         //Geet the first compnent of the viewbox array which is the side pan 
-        let $span = page_graph.viewbox[0];
+        let span = this.viewbox[0];
         //
         //Set the direction to + r -
-        let $sign = dir ? 1 : -1;
+        let sign = dir ? 1 : -1;
         //
         //Increase/decrease zoom by, say, 100
-        $span = $span + $step * $sign;
+        span = span + step * sign;
         //
         //Replace the 1st element of the viewbox which is the side pan
-        page_graph.viewbox[0] = $span;
+        this.viewbox[0] = span;
         //
-        //Turn the array into text
-        let $viewboxstr = page_graph.viewbox.join(" ");
-        //
-        //Assign the new view box to the svg viewBox Attribute
-        document.querySelector('svg').setAttribute('viewBox', $viewboxstr);
+        this.display();
     }
     //
     //pans the chart in up down direction
-    static top_pan(dir = true) {
+    top_pan(dir = true) {
         //
         //Geet the second compnent of the viewbox array which is the top pan 
-        let $span = page_graph.viewbox[1];
+        let span = this.viewbox[1];
         //
         //Set the direction to + r -
-        let $sign = dir ? 1 : -1;
+        let sign = dir ? 1 : -1;
         //
         //Increase/decrease zoom by, say, 100
-        $span = $span + $step * $sign;
+        span = span + step * sign;
         //
         //Replace the 2nd element of the viewbox which is the top pan
-        page_graph.viewbox[1] = $span;
-        //
-        //Turn the array into text
-        let $viewboxstr = page_graph.viewbox.join(" ");
-        //
-        //Assign the new view box to the svg viewBox Attribute
-        document.querySelector('svg').setAttribute('viewBox', $viewboxstr);
+        this.viewbox[1] = span;
+        // 
+        this.display();
     }
     
     //
     //Return a selected entity if there is a selected element or a false if no
     //selected element 
-    static get_selected(){
+    get_selected(){
         //
         //Get the affected/selected entity that we want to alter. The altering 
         //an entity can only happen if there is a selected element 
@@ -310,7 +256,7 @@ class page_graph extends metavisuo.schema.schema{
         const ename= selection.id; 
         //
         //Derive the affected entity from the dbase
-        const entity = databases[page_graph.dbname].entities[ename];
+        const entity =this.dbase.entities[ename];
         // 
         //Return the selected entity 
         return entity;
@@ -911,409 +857,6 @@ class page_graph extends metavisuo.schema.schema{
         selector.appendChild(option);
     }
     
-}
-
-
-//
-//This class models an sql record that has all the column 
-
-//
-class alterable_attribute extends column_attribute {
-    //
-    //the constructor 
-    constructor(entity, static_column){
-        //
-        //Create the parent 
-        super(entity, static_column);
-    }
-    
-    //
-    //Returns a div that Displays the column containig the
-    //description of this column and the coment saved in it as the matadata
-    display(div=null){
-       //
-       //Test if there is a div called with the method and if null create one
-       if (div===null){
-            //
-            //Create the div element with the id of the column name 
-            div= document.createElement('div');
-            div.setAttribute('id', `${this.name}`);
-       }
-        //
-        //Populate the div with the discription of the column
-        //
-        //create the datatype input tag 
-        //
-        //create a new div that stores information about the description of this 
-        //column  various input tags 
-        const description= document.createElement('div');
-        description.innerHTML=
-          `<h3>column description</h3>      
-         <input type="text" name="type" value=${this.data_type}>Datatype<br>
-         <input type="text" name="null" value=${this.is_nullable}>is_nullabe<br>
-         <input type="text" name="default" value=${this.Default}>default`;
-        //
-        //Append the description to the div
-         div.appendChild(description);
-       //
-       //Get the current comment 
-       let title;
-       let eg;
-       //
-       if (this.comment===!undefined){
-            title = this.comment.title!==undefined ? this.comment.title : '';
-            eg = this.comment.example!==undefined ? this.comment.example : '';
-        }
-           title=''; eg='';
-       //
-       //Get a new div that contains the comment structure
-       const metadata= document.createElement('div');
-       metadata.innerHTML=
-            `<h3>column metadata</h3>
-            <label>Title: <input type="text" name="title" value='${title}'></label>
-            <label>E.g.: <input type="text" name="example" value='${eg}'></label>`;
-       div.appendChild(metadata);
-       //
-       //Return the div 
-       return div;
-    } 
-    
-    //
-    //Update the structure of this column inorder to save the new structure and 
-    //the new comment 
-    update(div){
-       //
-       //destructure the div and save the structure and the comments
-       //Get the comment div {description(0) and metadata(1)}
-       const sections= div[0].children;
-       //
-       //update the description of the comment if any changes where made
-       //Get the children of the first section which are named inputs descructured below
-       //{input[name=data_type] , input[name=is_nullable], input[name=default]}
-       const description=sections[0].childNodes;
-       //
-       //loop through the inputs and update this column description
-       for(let i=0; i<description.length; i++){
-            //Get the ith input 
-            const input = description[i];
-            //
-            //Get the named metadata as a $key ie the data_type, is_nullable, default
-            let key = input.name;
-            //
-            //The values are the user inputs 
-            let value= input.value;
-            //
-            //update the property in the given key name 
-            this[key]= value;
-        }
-       //
-       //save the comment 
-       const comment= this.get_comment(sections[1]);
-       //
-       //Save the comment 
-       this.alter(comment);
-    }
-    
-     //
-    //Compiles and returns a clause that is required in the altering of this 
-    //attribute
-    get_clause(){
-        //
-        //the clause should majorly contain the datatype, null and the default 
-        let nullable, $default;
-         //
-         //Fill the null clause 
-        if (this.is_nullable ==='NO'){
-           nullable =` NOT NULL`;
-        }
-        else{
-             nullable=`NULL`;
-        }
-        //
-        //Fill the default clause
-        if (this.Default ===!null){
-            $default  =` DEFAULT ${this.default}`;
-        }
-        else {
-             $default  =``;
-        }
-        //
-        //begin with an empty string 
-        let clause = ``            
-        //
-        //Get the datatype of the column
-         +`${this.data_type}`
-         //
-         //Get the null
-         +`${nullable}`
-         //
-         //Get the default
-         +`${$default}`;
-        //
-        //return the clause         
-        return clause;
-    }
-    
-    //
-    //Returns a compiled comment ready to be saved 
-    get_comment(div){
-        //
-        //Get the inputs
-        const inputs= div.children;
-        //
-        //create an empty array to store the comment
-        const comment={};
-        //
-        //loop through the creating a comment creating a comment of named key pair
-        // values 
-        for(let i=0; i<inputs.length; i++){
-            //Get the ith input 
-            const input = inputs[i];
-            let key = input.name;
-            let value= input.value;
-            //
-            //push the new comment 
-            comment[key]=value;
-        }
-        //
-        //Return the comment
-        return comment;
-    }
-    
-    //
-    //Alter the structure of the column either to add a comment or change the
-    //alterable properties
-    async alter(comment){
-        //
-        //Get the clause 
-        const clause= this.get_clause();
-        //
-        //encode the entire comment to make it a json format 
-        const comment_str = JSON.stringify(comment);
-        //
-        //compile an alter command 
-        //
-        //Compile the alter command
-        const sql=`ALTER TABLE ${this.entity.name}  MODIFY  ${this.name}
-                     ${clause}  COMMENT  '${comment_str}'`;
-        //
-        //Run the query 
-        await mutall.fetch('database', 'query', {sql});
-    }
-
-}
-
-//
-//
-class alterable_relation extends column_foreign{
-    //
-    //
-    //the constructor 
-    constructor(entity, static_column){
-        //
-        //Create the parent 
-        super(entity, static_column);
-        //
-        //Borroow methods from the column_foreign key. Use mixin???????
-    }
-    
-    //
-    //Displays the relationship represented by this relation and its metadata 
-     //bnghvutfu75
-    //Returns a table populated with the column name given that represents a relation 
-    //and is metadata comment if any already saved at the database 
-    display(div=null){
-        //
-        //Test if the method was callled with a div else create a div to append 
-        //the components of a relation 
-       if (div===null){
-           //
-           div = document.createElement('div');
-       } 
-       //
-       //Place he relation id in the parent div
-       div.setAttribute('ename', this.entity.ename);
-       div.setAttribute('cname', this.name);
-       div.setAttribute('id', 'relation');
-            
-      //
-      //return the entire div 
-      return div;
-    }
-    
-    //
-    //Get updated structure from the div. The div has the form (see above)
-    //The outpyut comment has the structure
-    //{start, type:{type, name}, end}
-    //    
-    get_comment(div){
-        //
-        //start with an empty comment
-        const comment={};
-        //
-        //Get the children of the div{div#ename, div#type, div#metadata}
-        const sections= div.children;
-        //
-        //loop through the inputs assigning the types
-        for(let i=0; i<sections.length; i++){
-            //
-            //Get the element in the div
-          const element= sections[i];
-          //
-          //Test if the element is a div
-          //
-          //Element is not a div
-          if (element.nodeName===!'button'){
-              return ;
-          }
-          //
-          //element is a div
-          //
-          //Test if the id is an ename 
-          if (element.id=== "start"){
-              
-              //Get the selected value 
-              const value=element.value;
-              //
-              //Add it to the comment 
-              comment["start"]= value;
-          }
-           if (element.id=== "end"){
-              //
-              //Get the end value 
-              const value=element.value;
-              //
-              //Add it to the comment 
-              comment["end"]= value;
-          }
-           if (element.id=== "type"){
-              //
-              //Get the the first radio input 
-              const is_a= element.firstChild;
-              //
-              //test if checked
-              if(is_a.checked){
-                  //
-                  //update the comment 
-                  comment["type"]= {"type":"is_a"};
-              }
-              //Get the the last radio input 
-              const has_a= element.lastChild.firstChild;
-              //
-              //test if checked
-              if(has_a.checked){
-                  //
-                  //Get the name of the rerlation 
-                  const name= element.firstChild.value;
-                  //
-                  //update the comment 
-                  comment["type"]= {"type":"has_a",name};
-              }  
-          }
-        }
-    }
-     
-      //
-    //Compiles and returns a clause that is required in the altering of this 
-    //attribute
-    get_clause(){
-        //
-        //the clause should majorly contain the datatype, null and the default 
-        let nullable, $default;
-         //
-         //Fill the null clause 
-        if (this.is_nullable ==='NO'){
-           nullable =` NOT NULL`;
-        }
-        else{
-             nullable=`NULL`;
-        }
-        //
-        //Fill the default clause
-        if (this.Default ===!null){
-           Default  =` DEFAULT ${this.default}`;
-        }
-        else {
-             $default  =`DEFAULT NULL`;
-        }
-        //
-        //begin with an empty string 
-        let clause = ``            
-        //
-        //Get the datatype of the column
-         +`${this.data_type}`
-         //
-         //Get the null
-         +`${nullable}`
-         //
-         //Get the default
-         +`${$default}`;
-        //
-        //return the clause         
-        return clause;
-    }
-     //
-    //Compiles and returns a clause that is required in the altering of this 
-    //attribute
-    get_clause(){
-        //
-        //the clause should majorly contain the datatype, null and the default 
-        let nullable, $default;
-         //
-         //Fill the null clause 
-        if (this.is_nullable ==='NO'){
-           nullable =` NOT NULL `;
-        }
-        else{
-             nullable=`NULL `;
-        }
-        //
-        //Fill the default clause
-        if (this.Default ===!null){
-           $default  =` DEFAULT ${this.Default} `;
-        }
-        else {
-             $default  =``;
-        }
-        //
-        //begin with an empty string 
-        let clause = ``            
-        //
-        //Get the datatype of the column
-         +`${this.data_type} `
-         //
-         //Get the null
-         +`${nullable}`
-         //
-         //Get the default
-         +`${$default}`;
-        //
-        //return the clause         
-        return clause;
-    }
-          
-    //
-    //Alter the structure of the column either to add a comment or change the
-    //alterable properties
-    async alter(comment){
-        //
-        //Get the clause 
-        const clause= this.get_clause();
-        //
-        //encode the entire comment to make it a json format 
-        const comment_str = JSON.stringify(comment);
-        //
-        //compile an alter command 
-        //
-        //Compile the alter command
-        const sql=`ALTER TABLE ${this.entity.name}  MODIFY  ${this.name}
-                     ${clause}  COMMENT  '${comment_str}'`;
-        const name= this.entity.dbase.name;
-        //
-        //Run the query 
-        await mutall.fetch('database', 'query', {name,sql});
-    }
-
 }
 // 
 //Onload of this class call the initialize method.

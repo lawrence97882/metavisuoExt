@@ -2,7 +2,7 @@
 //Import the schema library where the schema class is defined. that is extended in this 
 //metavisuo file to include all the metavisuo editable classes.
 import * as schema from "../bolster/schema";
-import create_element from "./create";
+import { create_svg_element,create_html_element } from './create';
 //
 //The metavisuo alterable database for the support of metavisuo features. i.e., for the support of
 //of the Data definition Language(for alter commands)
@@ -52,31 +52,49 @@ class alterable_database extends schema.database {
     }  
     //
     //Display the database interms of ellipses for entities and lines for relations
-    present():SVGElement{
-        //
-        //Create the svg  element 
-        const svg = document.createElement('div');
+    present(svg:SVGElement):SVGElement{
         //
         //Append all the graphic in entities as children from the entities which 
         //contain a group with an ellipse, text and the attributes  
         for (let key  in this.entities){
             //
             //Get the entity referenced by the key
-             let entity= this.entities[key];
+             let entity= <alterable_entity>this.entities[key];
              //
              //Get the presentation from the individual entities
-             entity.present(div);
+             entity.present(svg);
         }
         
-       return div;
+       return svg;
     }
 }
+// 
+//The color of an entity 
+/**
+ * red:error
+ * green :new entity 
+ * yellow: entity with user defined coodinates 
+ *  */
+type entity_color= "red"|"green"|"yellow"
 //
 //This is an extented class of the entity in my library.js
 class alterable_entity extends schema.entity{
+    // 
+    //The svg group tag where this entity is displayed
+    public group ?:SVGGElement;
+    // 
+    //The ellipse that represents an entity coodinates.
+    public cx?:SVGAnimatedLength;
+    public cy?:SVGAnimatedLength;
+    // 
+    //The colors that are used to represent this entiy this
+    public color?:entity_color;
+    // 
+    //This property determines if this entity is hidden, i.e., can be displayed or not 
+    public visibility?:boolean;
     //
     //The alterable entity constructor
-    constructor(dbase, static_entity){
+    constructor(dbase:alterable_database, static_entity:schema.Ientity){
           //
           //Create the parent 
           super(dbase, static_entity);
@@ -115,9 +133,170 @@ class alterable_entity extends schema.entity{
         }
         return columns;
     }
+    //
+    //Display this entity as an ellipse with all its attribute.
+    present(svg:SVGElement):SVGGElement{
+        //
+        //set the radius of the elipse as rx and the ry while the dy is the diference
+        //between text in a tspan
+        const dy= 20, ry= 50;  
+        //
+        //Get the group which is a graphic representation of the ellipse and 
+        //its attribute 
+        this.group = this.get_group(svg, ry); 
+        //
+        //Append  the attributes of an entity
+        //
+        //
+        //Get all the column attributes contained in this entity 
+        const attributes = Object.values(this.columns).filter(column=>{
+           return column.constructor.name==='alterable_attribute';
+        });
+        //Get the number of the attributes in this entity 
+        const count= attributes.length;
+        //
+        //create a text inorder to append all the attributes as a tspan
+        let text= document.createElement('text');
+        //
+        //Set the attributes of the text
+        text.setAttribute( 'x', `${this.cx}`);
+        text.setAttribute( 'y',`${this.cy-dy*(count-1)-ry-dy}`);
+        text.setAttribute( 'font-size', "30px");
+        text.setAttribute( 'fill', "black");
+        //text.setAttribute( 'id', "");
+        //
+        //Append the tspans from the column attributes
+        attributes.forEach(column=>column.present(text, dy));
+        //Append the text containing attributes to the entity group
+        this.group.appendChild(text);
+        //
+        //Append the graphical entity group to the svg
+        svg.appendChild(this.group);
+        //
+        //Append the this entity's relations' to the svg element as lines
+        // 
+        //Collect the foreign key columns for this entity.
+        const columns = Object.values(this.columns).filter(column => {
+            //
+            //Test if the column is foreign and return  the condition
+            return column.constructor.name==='alterable_relation';
+        });
+        //
+        //loop through the foreign column and call the methord set line 
+        columns.forEach(column=>{
+            //invoke the function to set the line with the svg as a parameter
+            column.set_line(svg);
+         });
+         //Test if the entity is visible to construct its group
+        const visible= this.is_visible();
+        //
+        //continue with the presentation if true
+        if (visible===false){
+           this.group.classList.add( "hide");
+        }
+        return this.group!;
+    }
+    //
+    //Test if the entity is visible or invisible as set by the user 
+    //and sets the property  visible of this entity aas either true or false 
+    is_visible(){
       //
-      //Displays and returns this entity in a div as an interface for editing
-      display(comment){
+      //Get the comment that contains the user inputs 
+      const comment = this.metadata.visibility; 
+      //
+      //If it is set to true set the attribute of visibility to true
+      if(comment===true){
+          //
+          //Create a visible property of this entity and set it to true 
+          this.visibility=false;
+          return false;
+      }
+      //
+      //if the cmment is undefined, null or even set to  false it is set to false 
+      else {
+          //
+          //create a property of vsible 
+          this.visibility=true;
+          return true;
+      }
+    }
+    //
+    //Returns the  graphic group containig html ellipse (to represent an entity)
+    //a text (which represents the name of the entity
+    get_group(svg:SVGElement,ry:number):SVGGElement{
+        //
+        //Create teh group element
+        const group= create_svg_element(svg,"g",{id:`${this.name}_group`});
+        //
+        //set the radii of the ellipse. 
+        const rx =100; 
+        
+        //Populate the group tag with an ellipse to represent an entity.
+        create_svg_element(group,"ellipse",{
+              id:this.name,
+              cx:this.cx,
+              cy:this.cy,
+              rx:rx, 
+              ry:ry,
+              className:"draggable"  
+            }
+        ) 
+        // 
+        //The label of the ellipse.
+        create_svg_element(group,"text",
+            {
+               x:this.cx,
+               y:this.cy,
+               textContent:this.name,
+               fill:'blue',
+               id:`_${this.name}`,
+            }
+        )
+
+       //Return the group tag
+       return group;
+    }//
+    //sets the oodinates both the cx and the cx 
+    fill_coodinates(){
+        //test if the comment is undefined
+        if (this.comment.cx=== undefined || this.comment.cy === undefined){
+         // Get the coodinates from a random value 
+          this.cx= Math.floor(Math.random()*3000);
+          this.cy= Math.floor(Math.random()*1200);
+          // 
+          const y = xScale
+          //for deburging 
+          this.color= 'green';
+        //
+        }
+       //
+       //Test if the coodinates are set else set a random value
+       else{
+            //Set the coodinates of the ellipse from the comment
+           this.cx = parseInt(this.comment.cx);
+           this.cy= parseInt(this.comment.cy);
+           //for deburging        
+            //Get the indexed column names
+            const index_names = Object.values(this.indices);
+            //
+            //If red the entity does not have indexes
+            if( index_names.length === 0){
+               this.color="red"; 
+            }
+           //
+           //If yellow the entity has indexes
+           else{
+             this.color= 'yellow';
+           }
+      }
+        
+    }
+
+    
+
+    //
+    //Displays and returns this entity in a div as an interface for editing
+    display(comment){
           if(comment.title===undefined){comment.title='';}
           const text=`
               <label>Entity name:<input name="ename" readonly="true" value="${this.name}"/></label>
@@ -138,7 +317,7 @@ class alterable_entity extends schema.entity{
           return div;
       }
       
-      //
+       //
       //Get the updated comment and save it 
       get_comment(win){
           //
@@ -339,6 +518,404 @@ class alterable_column extends schema.column{
         //Run the query 
         await mutall.fetch('database', 'query', {alter});
     }
+}
+//
+//This class models an sql record that has all the column 
+
+//
+class alterable_attribute extends column_attribute {
+    //
+    //the constructor 
+    constructor(entity, static_column){
+        //
+        //Create the parent 
+        super(entity, static_column);
+    }
+    
+    //
+    //Returns a div that Displays the column containig the
+    //description of this column and the coment saved in it as the matadata
+    display(div=null){
+       //
+       //Test if there is a div called with the method and if null create one
+       if (div===null){
+            //
+            //Create the div element with the id of the column name 
+            div= document.createElement('div');
+            div.setAttribute('id', `${this.name}`);
+       }
+        //
+        //Populate the div with the discription of the column
+        //
+        //create the datatype input tag 
+        //
+        //create a new div that stores information about the description of this 
+        //column  various input tags 
+        const description= document.createElement('div');
+        description.innerHTML=
+          `<h3>column description</h3>      
+         <input type="text" name="type" value=${this.data_type}>Datatype<br>
+         <input type="text" name="null" value=${this.is_nullable}>is_nullabe<br>
+         <input type="text" name="default" value=${this.Default}>default`;
+        //
+        //Append the description to the div
+         div.appendChild(description);
+       //
+       //Get the current comment 
+       let title;
+       let eg;
+       //
+       if (this.comment===!undefined){
+            title = this.comment.title!==undefined ? this.comment.title : '';
+            eg = this.comment.example!==undefined ? this.comment.example : '';
+        }
+           title=''; eg='';
+       //
+       //Get a new div that contains the comment structure
+       const metadata= document.createElement('div');
+       metadata.innerHTML=
+            `<h3>column metadata</h3>
+            <label>Title: <input type="text" name="title" value='${title}'></label>
+            <label>E.g.: <input type="text" name="example" value='${eg}'></label>`;
+       div.appendChild(metadata);
+       //
+       //Return the div 
+       return div;
+    } 
+    
+    //
+    //Update the structure of this column inorder to save the new structure and 
+    //the new comment 
+    update(div){
+       //
+       //destructure the div and save the structure and the comments
+       //Get the comment div {description(0) and metadata(1)}
+       const sections= div[0].children;
+       //
+       //update the description of the comment if any changes where made
+       //Get the children of the first section which are named inputs descructured below
+       //{input[name=data_type] , input[name=is_nullable], input[name=default]}
+       const description=sections[0].childNodes;
+       //
+       //loop through the inputs and update this column description
+       for(let i=0; i<description.length; i++){
+            //Get the ith input 
+            const input = description[i];
+            //
+            //Get the named metadata as a $key ie the data_type, is_nullable, default
+            let key = input.name;
+            //
+            //The values are the user inputs 
+            let value= input.value;
+            //
+            //update the property in the given key name 
+            this[key]= value;
+        }
+       //
+       //save the comment 
+       const comment= this.get_comment(sections[1]);
+       //
+       //Save the comment 
+       this.alter(comment);
+    }
+    
+     //
+    //Compiles and returns a clause that is required in the altering of this 
+    //attribute
+    get_clause(){
+        //
+        //the clause should majorly contain the datatype, null and the default 
+        let nullable, $default;
+         //
+         //Fill the null clause 
+        if (this.is_nullable ==='NO'){
+           nullable =` NOT NULL`;
+        }
+        else{
+             nullable=`NULL`;
+        }
+        //
+        //Fill the default clause
+        if (this.Default ===!null){
+            $default  =` DEFAULT ${this.default}`;
+        }
+        else {
+             $default  =``;
+        }
+        //
+        //begin with an empty string 
+        let clause = ``            
+        //
+        //Get the datatype of the column
+         +`${this.data_type}`
+         //
+         //Get the null
+         +`${nullable}`
+         //
+         //Get the default
+         +`${$default}`;
+        //
+        //return the clause         
+        return clause;
+    }
+    
+    //
+    //Returns a compiled comment ready to be saved 
+    get_comment(div){
+        //
+        //Get the inputs
+        const inputs= div.children;
+        //
+        //create an empty array to store the comment
+        const comment={};
+        //
+        //loop through the creating a comment creating a comment of named key pair
+        // values 
+        for(let i=0; i<inputs.length; i++){
+            //Get the ith input 
+            const input = inputs[i];
+            let key = input.name;
+            let value= input.value;
+            //
+            //push the new comment 
+            comment[key]=value;
+        }
+        //
+        //Return the comment
+        return comment;
+    }
+    
+    //
+    //Alter the structure of the column either to add a comment or change the
+    //alterable properties
+    async alter(comment){
+        //
+        //Get the clause 
+        const clause= this.get_clause();
+        //
+        //encode the entire comment to make it a json format 
+        const comment_str = JSON.stringify(comment);
+        //
+        //compile an alter command 
+        //
+        //Compile the alter command
+        const sql=`ALTER TABLE ${this.entity.name}  MODIFY  ${this.name}
+                     ${clause}  COMMENT  '${comment_str}'`;
+        //
+        //Run the query 
+        await mutall.fetch('database', 'query', {sql});
+    }
+
+}
+class alterable_relation extends column_foreign{
+    //
+    //
+    //the constructor 
+    constructor(entity, static_column){
+        //
+        //Create the parent 
+        super(entity, static_column);
+        //
+        //Borroow methods from the column_foreign key. Use mixin???????
+    }
+    
+    //
+    //Displays the relationship represented by this relation and its metadata 
+     //bnghvutfu75
+    //Returns a table populated with the column name given that represents a relation 
+    //and is metadata comment if any already saved at the database 
+    display(div=null){
+        //
+        //Test if the method was callled with a div else create a div to append 
+        //the components of a relation 
+       if (div===null){
+           //
+           div = document.createElement('div');
+       } 
+       //
+       //Place he relation id in the parent div
+       div.setAttribute('ename', this.entity.ename);
+       div.setAttribute('cname', this.name);
+       div.setAttribute('id', 'relation');
+            
+      //
+      //return the entire div 
+      return div;
+    }
+    
+    //
+    //Get updated structure from the div. The div has the form (see above)
+    //The outpyut comment has the structure
+    //{start, type:{type, name}, end}
+    //    
+    get_comment(div){
+        //
+        //start with an empty comment
+        const comment={};
+        //
+        //Get the children of the div{div#ename, div#type, div#metadata}
+        const sections= div.children;
+        //
+        //loop through the inputs assigning the types
+        for(let i=0; i<sections.length; i++){
+            //
+            //Get the element in the div
+          const element= sections[i];
+          //
+          //Test if the element is a div
+          //
+          //Element is not a div
+          if (element.nodeName===!'button'){
+              return ;
+          }
+          //
+          //element is a div
+          //
+          //Test if the id is an ename 
+          if (element.id=== "start"){
+              
+              //Get the selected value 
+              const value=element.value;
+              //
+              //Add it to the comment 
+              comment["start"]= value;
+          }
+           if (element.id=== "end"){
+              //
+              //Get the end value 
+              const value=element.value;
+              //
+              //Add it to the comment 
+              comment["end"]= value;
+          }
+           if (element.id=== "type"){
+              //
+              //Get the the first radio input 
+              const is_a= element.firstChild;
+              //
+              //test if checked
+              if(is_a.checked){
+                  //
+                  //update the comment 
+                  comment["type"]= {"type":"is_a"};
+              }
+              //Get the the last radio input 
+              const has_a= element.lastChild.firstChild;
+              //
+              //test if checked
+              if(has_a.checked){
+                  //
+                  //Get the name of the rerlation 
+                  const name= element.firstChild.value;
+                  //
+                  //update the comment 
+                  comment["type"]= {"type":"has_a",name};
+              }  
+          }
+        }
+    }
+     
+      //
+    //Compiles and returns a clause that is required in the altering of this 
+    //attribute
+    get_clause(){
+        //
+        //the clause should majorly contain the datatype, null and the default 
+        let nullable, $default;
+         //
+         //Fill the null clause 
+        if (this.is_nullable ==='NO'){
+           nullable =` NOT NULL`;
+        }
+        else{
+             nullable=`NULL`;
+        }
+        //
+        //Fill the default clause
+        if (this.Default ===!null){
+           Default  =` DEFAULT ${this.default}`;
+        }
+        else {
+             $default  =`DEFAULT NULL`;
+        }
+        //
+        //begin with an empty string 
+        let clause = ``            
+        //
+        //Get the datatype of the column
+         +`${this.data_type}`
+         //
+         //Get the null
+         +`${nullable}`
+         //
+         //Get the default
+         +`${$default}`;
+        //
+        //return the clause         
+        return clause;
+    }
+     //
+    //Compiles and returns a clause that is required in the altering of this 
+    //attribute
+    get_clause(){
+        //
+        //the clause should majorly contain the datatype, null and the default 
+        let nullable, $default;
+         //
+         //Fill the null clause 
+        if (this.is_nullable ==='NO'){
+           nullable =` NOT NULL `;
+        }
+        else{
+             nullable=`NULL `;
+        }
+        //
+        //Fill the default clause
+        if (this.Default ===!null){
+           $default  =` DEFAULT ${this.Default} `;
+        }
+        else {
+             $default  =``;
+        }
+        //
+        //begin with an empty string 
+        let clause = ``            
+        //
+        //Get the datatype of the column
+         +`${this.data_type} `
+         //
+         //Get the null
+         +`${nullable}`
+         //
+         //Get the default
+         +`${$default}`;
+        //
+        //return the clause         
+        return clause;
+    }
+          
+    //
+    //Alter the structure of the column either to add a comment or change the
+    //alterable properties
+    async alter(comment){
+        //
+        //Get the clause 
+        const clause= this.get_clause();
+        //
+        //encode the entire comment to make it a json format 
+        const comment_str = JSON.stringify(comment);
+        //
+        //compile an alter command 
+        //
+        //Compile the alter command
+        const sql=`ALTER TABLE ${this.entity.name}  MODIFY  ${this.name}
+                     ${clause}  COMMENT  '${comment_str}'`;
+        const name= this.entity.dbase.name;
+        //
+        //Run the query 
+        await mutall.fetch('database', 'query', {name,sql});
+    }
+
 }
 
 export {alterable_database,schema}
