@@ -10,21 +10,10 @@ class alterable_database extends schema.database {
     // 
     //The type of this database
     public type:schema.db_type;
-    // 
-    //Save a collection of the opened databases as a Map
-    static opened_databases:{[db_type:string]:{[dbname:schema.dbname]:alterable_database}}={};
-    //
     //
     constructor(dbase:schema.database){
         super(dbase.static_dbase);
         this.type=dbase.static_dbase.class_name;
-        // 
-        //Throw an error if by any chance we are recreating this database
-        if(alterable_database.opened_databases[this.type][this.name] instanceof alterable_database)
-            throw new schema.mutall_error("this class is being overidden");
-        // 
-        //Set this database in the collection of databases.
-        alterable_database.opened_databases[this.type][this.name]=this;
     }
     // 
     //Overide the schema entity with this alterable entity that support the data definition 
@@ -113,7 +102,7 @@ class alterable_entity extends schema.entity{
             //
             //Define a dynamic column
             let dynamic_column;
-            switch(static_column.type){
+            switch(static_column.class_name){
                 //
                 case "primary": 
                     dynamic_column = new schema.primary(this, static_column);
@@ -125,7 +114,7 @@ class alterable_entity extends schema.entity{
                     dynamic_column = new alterable_relation(this, static_column);
                     break;
                 default:
-                    alert (`Unknow column type {static_column.type}`);
+                    alert (`Unknow column type ${static_column.class_name}`);
             }
         //
         //Replace the static column with the dynamic one
@@ -523,15 +512,32 @@ class alterable_column extends schema.column{
 //This class models an sql record that has all the column 
 
 //
-class alterable_attribute extends column_attribute {
+class alterable_attribute extends schema.attribute {
+    // 
+    //The parent of this entity
+    entity:alterable_entity;
     //
     //the constructor 
-    constructor(entity, static_column){
+    constructor(entity:alterable_entity, static_column:schema.attribute){
         //
         //Create the parent 
         super(entity, static_column);
+        // 
+        this.entity=entity;
     }
-    
+    //
+    //Returns the attribute as a graphical tspan for presentation purposes
+    present(parent:SVGElement, len?:SVGAnimatedLength):SVGGElement{
+        //
+        //Create a tspan and set all the attributes and return it for any futher 
+        //processes
+        return create_svg_element(parent,"tspan",{
+            dy:len,
+            x:this.entity.cx,
+            textContent:this.name,
+            id:`${this.entity.cx}.${this.name}`
+        });
+    }
     //
     //Returns a div that Displays the column containig the
     //description of this column and the coment saved in it as the matadata
@@ -618,6 +624,7 @@ class alterable_attribute extends column_attribute {
        //Save the comment 
        this.alter(comment);
     }
+    
     
      //
     //Compiles and returns a clause that is required in the altering of this 
@@ -707,11 +714,11 @@ class alterable_attribute extends column_attribute {
     }
 
 }
-class alterable_relation extends column_foreign{
+class alterable_relation extends schema.foreign{
     //
     //
     //the constructor 
-    constructor(entity, static_column){
+    constructor(entity:schema.entity, static_column:schema.column){
         //
         //Create the parent 
         super(entity, static_column);

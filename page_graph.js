@@ -1,9 +1,8 @@
 //
 //Import the structure of the database that can be alterable
 import * as metavisuo from './mtavisuo.js';
-// 
-//Import the php methods that are accesible to this application
-import * as library from '../bolster/library.js'
+//
+//
 import {create_html_element} from './create.js'
 //
 //Panning and zooming step (you may want to consider 2 steps, one for zooming
@@ -25,7 +24,7 @@ var current_db=null;
 
 ////This class was motivated by the need to present any data model in a graphical 
 //way
-class page_graph extends metavisuo.schema.schema{
+export default class graph extends metavisuo.schema.schema{
     /**
     //
     //The database that is currently being displayed.
@@ -40,9 +39,12 @@ class page_graph extends metavisuo.schema.schema{
     //The svg element where the presentation is taking place.
         *public svg?:SVGSVGElement;
     **/
+    // 
+    // The static object to attach the pagegrah event listeners
+    static current; /*:graph*/
     //
     //Use the querystring passed on from PHP to construct this page
-    constructor(){super("page_graph");}
+    constructor(){super("graph");}
     // 
     //initialize this graph with the available databases for display 
     async initialize()/*:Promise<void>*/{
@@ -51,19 +53,15 @@ class page_graph extends metavisuo.schema.schema{
         const header= /*<HTMLDivElement>*/document.querySelector('#header');
         // 
         //Create the dbselctor 
-        this.type_selector= create_html_element(header,"select",{id:"type_selector"});
+        this.type_selector= document.getElementById("db_type");;
         // 
         //create the dbname selector that is populated by the onchange of the type selector 
-        this.dbname_selector=create_html_element(header,"select",{id:"dbname_selector"});
+        this.dbname_selector=document.getElementById("db_name");
         // 
         //Populate the selector with options.
-        create_html_element(this.type_selector,"option",{textContent:"mysql",value:"mysql"});
-        create_html_element(this.type_selector,"option",{textContent:"postgres",value:"postgres"});
-        create_html_element(this.type_selector,"option",{textContent:"mssql",value:"mssql"});
-        //
-        //Add an event listener to the option that creates and populates the dbname selector 
-        //with the available databases for that database type
-        this.type_selector.onchange=async()=>await this.fill_selector;
+        create_html_element(this.type_selector,"option",{textContent:"MYSQL",value:"mysql"});
+        create_html_element(this.type_selector,"option",{textContent:"PostgreSQL",value:"postgres"});
+        create_html_element(this.type_selector,"option",{textContent:"MicrosoftSQL",value:"mssql"});
         // 
         //Set the svg element. 
         this.svg=/*<SVGSVGElement>*/document.querySelector("#svg");
@@ -88,13 +86,10 @@ class page_graph extends metavisuo.schema.schema{
         const dbnames= await this.exec(type,["test"],"get_dbnames",[]);
         //
         //Append all fetched the database names to the selector 
-        dbnames.forEach(dbname => {
+        dbnames.forEach(dbase=> {
             //
-            create_html_element(this.dbname_selector,"option",{textContent:dbname,value:dbname});
+            create_html_element(this.dbname_selector,"option",{textContent:dbase.dbname,value:dbase.dbname});
         });
-        // 
-        //onchange of this selector present a diferent database
-        this.dbname_selector.onchange=()=>this.change_db;
     }
     // 
     //The currently selected dbname as set by the user.
@@ -120,11 +115,11 @@ class page_graph extends metavisuo.schema.schema{
     //
     //Returns the dbase which is obtained via the javascript library 
     async get_dbase(dbtype/**:metavisuo.schema.db_type*/, dbname/*:string*/)/*:Promise<metavisuo.alterable_database>**/{
-        //
-        //Check if the database is alraedy opened; if it is, use the opened 
-        //database; otherwise, open a fresh one
-        if (metavisuo.alterable_database.opened_databases[dbtype][dbname]===undefined){
-            //
+//        //
+//        //Check if the database is alraedy opened; if it is, use the opened 
+//        //database; otherwise, open a fresh one
+//        if (metavisuo.alterable_database.opened_databases[dbtype][dbname]===undefined){
+//            //
             //Get the static database which is the php version of the database
             //this is to activate the library.js
             const _dbase = await this.exec(dbtype,[dbname],"export_structure",[])
@@ -132,9 +127,9 @@ class page_graph extends metavisuo.schema.schema{
             //Create the schema database
             const schema = new metavisuo.schema.database(_dbase);
             //
-            const dbase = new metavisuo.alterable_database(schema);
-        }
-        //
+            return new metavisuo.alterable_database(schema);
+//        }
+//        //
         //Return the javascript database
         return metavisuo.alterable_database.opened_databases[dbtype][dbname];
     }
@@ -145,11 +140,8 @@ class page_graph extends metavisuo.schema.schema{
         //If the viewbox is empty, fill it from the svg
         if (viewbox_.length === 0) {
             //
-            //Get the svg tag 
-            this.svg = this.set_svg();
-            //
             //Retrieve the viewBox attribute
-            let viewbox = page_graph.svg.getAttribute('viewBox');
+            let viewbox = this.svg.getAttribute('viewBox');
             //
             //split the view box properties using the space 
             let $split_strs = viewbox.split(" ");
@@ -861,6 +853,6 @@ class page_graph extends metavisuo.schema.schema{
 // 
 //Onload of this class call the initialize method.
 window.onload = async () => {
-    const Graph=new page_graph();
-    Graph.initialize();
+    graph.current=new graph();
+    graph.current.initialize();
 };
