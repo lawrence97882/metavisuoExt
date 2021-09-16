@@ -1,67 +1,85 @@
- <?php
- //
-//Start the buffering as early as possible. All html outputs will be 
-//bufferred 
-ob_start();
-        
-//The output strcure has teh format: {ok, result, html} where:-
-//ok is true if the returned resut is valid and false not. If not the result 
-//  has the error message.
-//result is the user specified request
-//html is the buffered html output 
-//error 
-$output = new stdClass();
-//
-//Catch all errors, including warnings.
-set_error_handler(function($errno, $errstr, $errfile, $errline, $errcontext) {
-    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
-});
-//
-//Catch any error that may arise.
-try{
+<?php
     //
-    //Include the library libray where the mutall class is defined. (This will
-    //throw a warning only which is not trapped. Avoid requre. Its fatal!
-    require_once 'library.php';
-    require_once 'page_graph.php';
+    //Enable reporting for all types
+    set_error_handler(function($errno, $message, $filename, $lineno){
+       throw new ErrorException($message, 0, $errno, $filename, $lineno); 
+    });
     //
-    //Run the requested method an a requested class
-    $output->result = mutall::index($output);
+    //Access the definition of classes used in this project
+    include "library.php";
     //
-    //The process is successful; register that fact
-    $output->ok=true;
-}
-//
-//The user request failed
-catch(Exception $ex){
-    //
-    //Register the failure fact.
-    $output->ok=false;
-    //
-    //Compile the full message, including the trace
-     //
-    //Replace the hash with a line break in teh terace message
-    $trace = str_replace("#", "<br/>", $ex->getTraceAsString());
-    //
-    //Record the error message in a fireienly way
-    $output->result = $ex->getMessage() . "<br/>$trace";
-}
-finally{
-     //
-     //Empty the output buffer
-     $output->html = ob_end_clean();
-     //
-    $encode = json_encode($output);
-    //
-    //Take care of teh fact that the output may not be jsone encodable.
-    if ($encode){
-        //
-        //Echo the output as a json string
-        echo $encode;
-    }    
-     else {
-         //Json encoding failed
-         $err = json_last_error_msg();
-         echo $err;
-     }
-}
+    //Get the database name from the url 
+    $request =json_encode( $_REQUEST );
+    
+?>
+<html>
+    <head>
+        <link rel="stylesheet" type="text/css" href="home.css">
+        <script src='dragndrop_library.js'></script> 
+        <script src='library.js'></script>
+        <script src="./node_modules/kld-intersections/dist/index-umd.js"></script>      
+       
+        <script src='page_graph.js'></script>      
+       <script>
+           //
+           //Create a page graph object using the database from php
+           var $page_graph =new page_graph(<?php  echo $request;?>);
+        </script>
+        <style>
+        </style>
+    </head>
+    <body>
+        <div class="navbar">
+            <div class="dropdown">
+              <button class="dropbtn">Entity operations
+                <i class="fa fa-caret-down"></i>
+              </button>
+              <div class="dropdown-content">
+                  <li id="alter_entity" onclick="page_graph.display_entity()">Display entity</li>
+                  <li id="review_record" onclick="page_graph.review_entity()">Review Entity</li>
+                   
+              </div>
+            </div> 
+            <div class="dropdown">
+              <button class="dropbtn">Selected  
+                <i class="fa fa-caret-down"></i>
+              </button>
+              <div class="dropdown-content">
+                  <li id="alter_entity" onclick="page_graph.edit_relation()">Edit relation</li>
+                  <li id="alter_entity" onclick="page_graph.edit_attributes()">Edit attributes</li>
+                  <li id="alter_entity" onclick="page_graph.display_entity()">Edit entity</li>
+                  <li id="hide_entity" onclick="page_graph.hide_element()">Hide Selected</li>
+                  <li id="delete_entity">Delete selected</li>
+              </div>
+            </div>
+            <div class="dropdown">
+              <button class="dropbtn">view
+                <i class="fa fa-caret-down"></i>
+              </button>
+              <div class="dropdown-content">
+                <li id="save_structure" onclick="page_graph.save_view()">Save view</li>
+                <li id="show_entity" onclick="$page_graph.show_element()">Show Entity</li>
+                <li id="hidden_entities">Hidden entities</li>
+              </div>
+            </div> 
+        </div>
+        <div id="select">
+            <button type="button" onclick="page_graph.zoom(false)"><b>+</b></button>
+            <button type="button" onclick="page_graph.side_pan(true)"><b>&lt;</b></button>
+            <button type="button" onclick="page_graph.top_pan(true)" ><b>˄</b></button>
+            <button type="button"onclick="page_graph.side_pan(false)"><b>&gt;</b></button>
+            <button type="button" onclick='page_graph.zoom(true)'><b>-</b></button>
+            <button type="button" onclick="page_graph.top_pan(false)"><b>˅</b></button>
+            <select id="selector" onchange="page_graph.changedb()" placeholder="select your database"> </select>
+            <select id="hidden" onchange="page_graph.show_entity()"placeholder="select to show the hidden entities">
+                <option></option>
+            </select>
+            <button id="close_dbase" onclick="page_graph.close_dbase()">Close database</button> 
+       </div> 
+            <div id="content">
+                <svg height="100%" width="100%" viewbox="100 -100 3000 2400" onload="new dragndrop()"id="svg">
+                </svg>
+            </div>
+       
+</body>
+</html>
