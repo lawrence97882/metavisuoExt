@@ -107,10 +107,10 @@ export default class graph extends metavisuo.schema.schema{
         //
         //Get the static database which is the php version of the database
         //this is to activate the library.js           
-        const dbase = await this.get_dbase(this.db_type,this.dbname);
+        this.dbase = await this.get_dbase(this.db_type,this.dbname);
         //
         //Append the various database componets to this svg.
-        dbase.present(this.svg);
+        this.dbase.present(this.svg);
     }
     //
     //Returns the dbase which is obtained via the javascript library 
@@ -499,85 +499,50 @@ export default class graph extends metavisuo.schema.schema{
     }
       
     //
-    //This method creates the array of teh form:-
-    //[{ename, cx, cy}, ...]
-    //where ....an array consisting of objects where the coordinates
-    //of various ellipses are saved for further altering of the database 
-    //structure. 
-    static async save_view() {
+    //Saves the current positions of the ellipses in the database for the persistence of the
+    //the position of the ellipses in the svg. this happens by collecting the information in the 
+    //following manner[{ename:string,comment:string}]
+    async save_view()/*:Promise<void>*/ {
         //
         //Get all the new coordinates of the entities
-        const coordinates = page_graph.get_coordinates();
+        const changes/**Array<{ename:string,comment:string}> */= this.complete_table_comment();
+        // 
+        //Push the changes about the updated metadata to the database
+        const ok/** boolean*/=await this.exec(this.db_type,[this.dbname],"Update_entity_metadata",[changes])
+        console.log(ok);
         //
-        //formulate sql alter comand statements to save the structure 
-        const sqls = coordinates.forEach(coordinate=>{
-            const {name, cx, cy} = coordinate;
-            //
-            //Get the existing entity comment 
-            const comment= databases[page_graph.dbname].entities[name].comment;
-            //
-            //Add coodinates to the comment if they do not exist or update the existing ones
-            //
-            //update the coodinates of this entity 
-            comment.cx= cx;
-            comment.cy= cy; 
-            //
-            //save the comment 
-            databases[page_graph.dbname].entities[name].alter(comment);
-        });
+        //Report the outcome of the updatting process
+        if(ok) alert("Your structure has been succesfully saved");
+        else alert("Errors occured when saving the new display see the error in the errors tab"); 
     }
     
     //
-    //Returns all the coordinates of the entities of the current database
-    static get_coordinates(){
+    //Compiles all the metadata of a prticular entity preparing to be saved as a comment 
+    //to the respective entity.
+    complete_table_comment()/**Array<{ename,comment}> */{
         //
-        //Let coordinates be an empty array where we will save all the coodinates
-        //of the ellipses for saving 
-        const coordinates = [];
-        //
-        //Get the collection of all the entities represented by the ellipses   
-        const ellipses = document.querySelectorAll('ellipse');
-        //
-        //Loop through the collection of the ellpses to obtain the new coodinates of each 
-        ellipses.forEach($e => {
-            //
-            //this is the object to which we save the coodinates 
-            const coordinate = {};
-            //
-            //Get the name of the entity
-            coordinate.name =$e.getAttribute('id');
+        //Get the collection of all the entities represented by the ellipses that represents all the 
+        //tables of a particular database.  
+        const ellipses/**Array<SVGEllipseElement> */ = Array.from(document.querySelectorAll('ellipse'));
+        // 
+        //Return the the ename and the comment that is associated with each entity. i.e., {ename, comment}
+        return /**Array<{ename,comment}> */ ellipses.map(ell=>{
             // 
-            // Test if the entity has saved its new coodinates
-            // 
-            //1.Does not contains the new coodinates save the previous old coodinates
-            if (parseInt($e.getAttribute('newx'))===0){
-               //
-               //set the coodinate 
-               coordinate.cx= $e.getAttribute('cx');
-               coordinate.cy= $e.getAttribute('cy');
-               //
-                //Collect the x and y coordinates of the  ellipses into an array
-                //Push the coodinate to the array 
-                coordinates.push(coordinate);
-            }
+            //The ename of this entity is the id of this entity.
+            const ename=ell.id;
             //
-            // New coordinates have been saved 
-            else {
-               coordinate.cx = parseInt($e.getAttribute('newx'));
-               coordinate.cy = parseInt($e.getAttribute('newy'));
-               //  
-               //
-                //Collect the x and y coordinates of the  ellipses into an array
-                //Push the coodinate to the array 
-                coordinates.push(coordinate);
-            }
+            //Get the entity represented by this entity.
+            const entity= this.dbase.entities[ename];
             //
-            //Collect the x and y coordinates of the  ellipses into an array
-            //Push the coodinate to the array 
-            coordinates.push(coordinate);
-        });
-        //
-        return coordinates;
+            //Update this entity with the new state 
+            entity.update_metadata(ell);
+            //
+            //Save all the metadata as a comment
+            const comment=JSON.stringify(entity.metadata);
+            //
+            //Return the the ename and comment structure expected.
+            return {ename,comment};
+        })
     }
 
     //

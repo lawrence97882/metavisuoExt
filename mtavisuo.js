@@ -130,6 +130,30 @@ class alterable_entity extends schema.entity {
         }
         return columns;
     }
+    // 
+    //Updates the metadata property of this entity with the given data either retrieved from the ellipse
+    //that is used to display this entity in metavisuo.
+    update_metadata(ellipse/**SVGElement|null*/,property=null/**:Array<{property:Updated_value}> */)/**:void*/{
+        //
+        //update the coordinates and visibility from the ellipse
+        if(ellipse instanceof SVGElement){
+            if(this.name==='credit'){
+                console.log(true);
+            }
+            //
+            //Save only the updated coordinates
+            if (ellipse.getAttribute('newx') !==null){
+                this.metadata.cx= ellipse.getAttribute('newx');
+                this.metadata.cy=ellipse.getAttribute('newy');
+            }
+        }
+        // 
+        //Save the visibility property
+        this.metadata.visibility=ellipse.hidden;
+        //
+        //Set any other properties requested
+        if(property !== null) Object.assign(this,property);
+    }
     //
     //Display this entity as an ellipse with all its attribute.
     present(svg/**SVGElement*/)/**:SVGElement*/{
@@ -160,11 +184,11 @@ class alterable_entity extends schema.entity {
         let text= create_svg_element(this.group,"text",
             {
                 x:this.cx,
-                y:(this.cy - dy * (count - 1) - ry - dy)
+                y:(this.cy - dy * (count - 1) - ry - dy),
+                fill:"black",
             }
         );
         text.setAttribute('font-size', "30px");
-        text.setAttribute('fill', "black");
         //
         //Append the tspans from the column attributes
         attributes.forEach(column => column.present(text, dy));
@@ -236,29 +260,32 @@ class alterable_entity extends schema.entity {
             id: this.name,
             cx: this.cx,
             cy: this.cy,
+            fill: this.color,
             rx: rx,
             ry: ry,
             className: "draggable"
         });
         // 
         //The label of the ellipse as the name of this entity.
-        create_svg_element(group, "text", {
+        const label=create_svg_element(group, "text", {
             x: this.cx,
             y: this.cy,
             textContent: this.name,
-            fill: 'blue',
+            fill: "blue",
             id: `_${this.name}`,
         });
+        label.setAttribute('font-size', "35px");
+        label.setAttribute('text-anchor', "middle");
         //Return the group tag
         return group;
     } //
     //sets the oodinates both the cx and the cx 
     fill_coodinates() {
         //test if the comment is undefined
-        if (this.comment.cx === undefined || this.cx === undefined) {
+        if (this.metadata.cx === undefined) {
             // Get the coodinates from a random value 
-            this.cx = Math.floor(Math.random() * 3000);
-            this.cy = Math.floor(Math.random() * 1200);
+            this.metadata.cx=this.cx = Math.floor(Math.random() * 3000);
+            this.metadata.cy=this.cy = Math.floor(Math.random() * 1200);
             // 
             //for deburging 
             this.color = 'green';
@@ -268,8 +295,8 @@ class alterable_entity extends schema.entity {
         //Test if the coodinates are set else set a random value
         else {
             //Set the coodinates of the ellipse from the comment
-            this.cx = parseInt(this.comment.cx);
-            this.cy = parseInt(this.comment.cy);
+            this.cx = parseInt(this.metadata.cx);
+            this.cy = parseInt(this.metadata.cy);
             //for deburging        
             //Get the indexed column names
             const index_names = Object.values(this.indices);
@@ -727,6 +754,12 @@ class alterable_relation extends schema.foreign {
         //Get the referenced entity 
         const end_entity = this.away();
         //
+        //Throw an error if this end entity is undefined
+        if(end_entity===undefined){
+             console.log(`Entity not found`);
+             console.log(this.ref);
+        }
+        //
         //create the start and the end entities using  kev intersection format
         //
         //Define the coordinates of the ellipse centers for the start  
@@ -774,7 +807,7 @@ class alterable_relation extends schema.foreign {
                 y1:p1.y,
                 y2:p2.y, 
                 className:"static",
-                id:`${this.entity.name}_${this.ref.table_name}`
+                id:`${this.entity.name}.${this.ref.table_name}`
             })
 
             const circle=create_svg_element(svg,"circle",{
@@ -782,7 +815,7 @@ class alterable_relation extends schema.foreign {
                 cy:p1.y,
                 r:10, 
                 fill:"green",
-                id: `${this.name}`
+                id: `${this.entity.name}_${this.ref.table_name}`
             })
            //
            //Get the type of the relation so as to give a stroke color to it
