@@ -93,7 +93,7 @@ class alterable_entity extends schema.entity {
         //
         //Save the parent of this entity
         this.parent/**:alterable database*/=dbase;
-    }
+21`    }
     //
     //Overide the column of the schema entity and set them as the alterable columns that 
     //can be used to create a graphical reprentation of this entity
